@@ -1,12 +1,13 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http'
-import { Observable } from 'rxjs';
+import { BehaviorSubject, Observable, map, withLatestFrom } from 'rxjs';
 import { Task } from '../interfaces/task';
 
 @Injectable({
   providedIn: 'root'
 })
 export class TaskService {
+  private _tasks: BehaviorSubject<Array<Task>> = new BehaviorSubject<Array<Task>>([]);
   private static API_URL: string = 'http://localhost:3000/tasks';
   private static HTTP_OPTIONS: object = {
     headers: new HttpHeaders({
@@ -14,25 +15,55 @@ export class TaskService {
     })
   };
 
+  public readonly tasks$: Observable<Array<Task>> = this._tasks.asObservable();
+
   constructor(private httpClient: HttpClient) { }
 
   static getTaskSpecificURL(id: number | undefined): string {
     return `${TaskService.API_URL}/${id}`;
   }
 
-  getTasks(): Observable<Task[]> {
-    return this.httpClient.get<Task[]>(TaskService.API_URL);
+  getTasks(): void {
+    this.httpClient.get<Task[]>(TaskService.API_URL)
+      .subscribe((tasks: Task[]) => {
+        this._tasks.next(tasks);
+      });
   }
 
-  addTask(task: Task): Observable<Task> {
-    return this.httpClient.post<Task>(TaskService.API_URL, task, TaskService.HTTP_OPTIONS);
+  addTask(task: Task): void {
+    this.httpClient.post<Task>(TaskService.API_URL, task, TaskService.HTTP_OPTIONS)
+      .subscribe((newTask: Task) => {
+        this._tasks.next([ ...this._tasks.getValue(), newTask ]);
+      });
   }
 
-  deleteTask(task: Task): Observable<Task> {
-    return this.httpClient.delete<Task>(TaskService.getTaskSpecificURL(task.id));
+  updateTaskReminder(task: Task): void {
+    this.httpClient.put<Task>(TaskService.getTaskSpecificURL(task.id), task, TaskService.HTTP_OPTIONS)
+      .pipe(
+        withLatestFrom(this.tasks$),
+        map(([updatedTask, currentTasks]) => {
+          return currentTasks.map((task: Task) => {
+            return task.id === updatedTask.id ? updatedTask : task
+          });
+        }),
+      )
+      .subscribe((tasks: Task[]) => {
+        this._tasks.next(tasks);
+      });
   }
 
-  updateTaskReminder(task: Task): Observable<Task> {
-    return this.httpClient.put<Task>(TaskService.getTaskSpecificURL(task.id), task, TaskService.HTTP_OPTIONS);
+  deleteTask(task: Task): void {
+    this.httpClient.delete<Task>(TaskService.getTaskSpecificURL(task.id))
+      .pipe(
+        withLatestFrom(this.tasks$),
+        map(([deletedTask, currentTasks]) => {
+          return currentTasks.filter((t: Task) => {
+            return t.id != task.id;
+          });
+        }),
+      )
+      .subscribe((tasks: Task[]) => {
+        this._tasks.next(tasks);
+      });
   }
 }
