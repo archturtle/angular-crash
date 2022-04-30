@@ -7,7 +7,6 @@ import { Task } from '../interfaces/task';
   providedIn: 'root'
 })
 export class TaskService {
-  private _tasks: BehaviorSubject<Array<Task>> = new BehaviorSubject<Array<Task>>([]);
   private static API_URL: string = 'http://localhost:3000/tasks';
   private static HTTP_OPTIONS: object = {
     headers: new HttpHeaders({
@@ -15,6 +14,7 @@ export class TaskService {
     })
   };
 
+  private _tasks: BehaviorSubject<Array<Task>> = new BehaviorSubject<Array<Task>>([]);
   public readonly tasks$: Observable<Array<Task>> = this._tasks.asObservable();
 
   constructor(private httpClient: HttpClient) { }
